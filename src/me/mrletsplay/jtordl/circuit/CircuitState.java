@@ -8,6 +8,7 @@ public enum CircuitState {
 	STOPPING(false),
 	STOPPED(false),
 	CRASHED(false),
+	EXITED(false),
 	;
 	
 	private final boolean isRunningState;

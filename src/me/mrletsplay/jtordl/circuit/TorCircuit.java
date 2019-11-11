@@ -35,7 +35,7 @@ public class TorCircuit {
 		this.port = port;
 		this.socksProxy = new Proxy(Type.SOCKS, new InetSocketAddress(host, port));
 		this.isDefault = isDefault;
-		this.state = CircuitState.STOPPED;
+		this.state = isDefault ? CircuitState.RUNNING : CircuitState.STOPPED;
 	}
 	
 	public TorCircuit(File circuitFolder, String host, int port) {
@@ -94,27 +94,33 @@ public class TorCircuit {
 	}
 	
 	private void start0() throws FriendlyException {
+		if(state.equals(CircuitState.EXITED)) return;
+		Runtime.getRuntime().addShutdownHook(new Thread(() ->  {
+			state = CircuitState.EXITED;
+			stop0();
+		}));
 		circuitFolder.mkdirs();
 		File torRCFile = new File(circuitFolder, "torrc");
 		IOUtils.createFile(torRCFile);
-		ProcessBuilder pb = new ProcessBuilder(
-					torPath,
-					"-f",
-					torRCFile.getAbsolutePath(),
-					"--DataDirectory",
-					circuitFolder.getAbsolutePath(),
-					"--SocksPort",
-					String.valueOf(port)
-				);
-		
-		if(verbose) {
-			pb.redirectOutput(Redirect.INHERIT);
-			pb.redirectError(Redirect.INHERIT);
-		}
 		
 		try {
 			int nTries = 5;
 			while(nTries-- > 0) {
+				ProcessBuilder pb = new ProcessBuilder(
+						torPath,
+						"-f",
+						torRCFile.getAbsolutePath(),
+						"--DataDirectory",
+						circuitFolder.getAbsolutePath(),
+						"--SocksPort",
+						String.valueOf(port)
+					);
+			
+				if(verbose) {
+					pb.redirectOutput(Redirect.INHERIT);
+					pb.redirectError(Redirect.INHERIT);
+				}
+				
 				instanceProcess = pb.start();
 				
 				try {
@@ -123,18 +129,19 @@ public class TorCircuit {
 					throw new FriendlyException(e);
 				}
 				
-				if(!connectionTest()) {
+				int n = 0;
+				while(n++ < 5) {
+					if(connectionTest()) {
+						state = CircuitState.RUNNING;
+						return;
+					}
 					stop0();
-				}else {
-					Runtime.getRuntime().addShutdownHook(new Thread(this::stop0));
-					state = CircuitState.RUNNING;
-					return;
+					Thread.sleep(1000);
 				}
-				
 			}
 			state = CircuitState.STOPPED;
 			throw new FriendlyException("Failed to start tor circuit after 5 tries");
-		} catch (IOException e) {
+		} catch (IOException | InterruptedException e) {
 			state = CircuitState.STOPPED;
 			throw new FriendlyException("Failed to start tor circuit", e);
 		}
@@ -160,6 +167,7 @@ public class TorCircuit {
 	}
 	
 	public void restart() {
+		if(state.equals(CircuitState.EXITED)) return;
 		if(isDefault) throw new UnsupportedOperationException("Circuit is default circuit");
 		if(isStarting()) return;
 		boolean needsStop = isRunning();
@@ -186,7 +194,6 @@ public class TorCircuit {
 			con.disconnect();
 			return true;
 		} catch (Exception e) {
-			e.printStackTrace();
 			return false;
 		}
 	}

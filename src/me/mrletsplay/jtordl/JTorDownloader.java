@@ -17,6 +17,7 @@ public class JTorDownloader {
 
 	public static InputStream createStream(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
+			circuit.awaitState(CircuitState.RUNNING);
 			return circuit.createConnection(url).getInputStream();
 		} catch (IOException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
@@ -33,6 +34,7 @@ public class JTorDownloader {
 	
 	public static InputStream createStream(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) throws FriendlyException {
 		try {
+			circuit.awaitState(CircuitState.RUNNING);
 			HttpURLConnection con = circuit.createConnection(url);
 			con.setRequestProperty("Range", "bytes=" + rangeStart + "-" + (rangeEnd == -1 ? "" : rangeEnd));
 			return con.getInputStream();
@@ -51,6 +53,7 @@ public class JTorDownloader {
 	
 	public static long getContentLength(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
+			circuit.awaitState(CircuitState.RUNNING);
 			HttpURLConnection con = circuit.createConnection(url);
 			con.setRequestMethod("HEAD");
 			return con.getContentLength();
@@ -111,7 +114,7 @@ public class JTorDownloader {
 		};
 	}
 	
-	private static <T> T tryMultiple(Callable<T> call, int maxTries) throws Exception {
+	public static <T> T tryMultiple(Callable<T> call, int maxTries) throws Exception {
 		int n = 0;
 		while(n++ < maxTries) {
 			try {
