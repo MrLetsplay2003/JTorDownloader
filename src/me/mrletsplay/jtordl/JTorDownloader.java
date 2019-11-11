@@ -22,6 +22,14 @@ public class JTorDownloader {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
 	}
+
+	public static InputStream createStream(TorCircuit circuit, String url) throws FriendlyException {
+		try {
+			return createStream(circuit, new URL(url));
+		} catch (MalformedURLException e) {
+			throw new FriendlyException(e);
+		}
+	}
 	
 	public static InputStream createStream(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) throws FriendlyException {
 		try {
@@ -32,6 +40,14 @@ public class JTorDownloader {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
 	}
+
+	public static InputStream createStream(TorCircuit circuit, String url, long rangeStart, long rangeEnd) throws FriendlyException {
+		try {
+			return createStream(circuit, new URL(url), rangeStart, rangeEnd);
+		} catch (MalformedURLException e) {
+			throw new FriendlyException(e);
+		}
+	}
 	
 	public static long getContentLength(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
@@ -40,6 +56,14 @@ public class JTorDownloader {
 			return con.getContentLength();
 		}catch(IOException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
+		}
+	}
+	
+	public static long getContentLength(TorCircuit circuit, String url) throws FriendlyException {
+		try {
+			return getContentLength(circuit, new URL(url));
+		} catch (MalformedURLException e) {
+			throw new FriendlyException(e);
 		}
 	}
 	
