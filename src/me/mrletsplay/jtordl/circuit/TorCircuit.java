@@ -29,7 +29,7 @@ public class TorCircuit {
 	private Process instanceProcess;
 	
 	private TorCircuit(File circuitFolder, String host, int port, boolean isDefault) {
-		if(!ensureOpen(host, port)) throw new FriendlyException("Address is not open");
+		if(!isDefault && !ensureOpen(host, port)) throw new FriendlyException("Address is not open");
 		this.circuitFolder = circuitFolder;
 		this.host = host;
 		this.port = port;
