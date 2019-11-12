@@ -37,6 +37,7 @@ public class JTorDownloader {
 			circuit.awaitState(CircuitState.RUNNING);
 			HttpURLConnection con = circuit.createConnection(url);
 			con.setRequestProperty("Range", "bytes=" + rangeStart + "-" + (rangeEnd == -1 ? "" : rangeEnd));
+			con.connect();
 			return con.getInputStream();
 		}catch(IOException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
@@ -85,7 +86,7 @@ public class JTorDownloader {
 	}
 	
 	public static RetryingInputStream createStableInputStream(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) throws FriendlyException {
-		InputStream initialInput = createStream(circuit, url);
+		InputStream initialInput = createStream(circuit, url, rangeStart, rangeEnd);
 		Function<Long, InputStream> newInputFct = newInput(circuit, url, rangeStart, rangeEnd);
 		return new RetryingInputStream(initialInput, newInputFct);
 	}
@@ -101,12 +102,12 @@ public class JTorDownloader {
 	private static Function<Long, InputStream> newInput(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) {
 		return offset -> {
 			try {
-				return tryMultiple(() -> createStream(circuit, url, rangeStart , rangeEnd), 5);
+				return tryMultiple(() -> createStream(circuit, url, rangeStart + offset, rangeEnd), 5);
 			} catch (Exception e) {
 				circuit.restart();
 				circuit.awaitState(CircuitState.RUNNING);
 				try {
-					return tryMultiple(() -> createStream(circuit, url, rangeStart , rangeEnd), 5);
+					return tryMultiple(() -> createStream(circuit, url, rangeStart + offset, rangeEnd), 5);
 				} catch (Exception e1) {
 					throw new FriendlyException("Failed to reestablish connection", e1);
 				}

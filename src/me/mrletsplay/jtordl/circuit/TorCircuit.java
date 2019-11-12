@@ -24,7 +24,7 @@ public class TorCircuit {
 	private String host;
 	private int port;
 	private Proxy socksProxy;
-	private boolean isDefault, verbose;
+	private boolean isDefault, verbose, printTorOutput;
 	private CircuitState state;
 	private Process instanceProcess;
 	
@@ -86,6 +86,18 @@ public class TorCircuit {
 		this.verbose = verbose;
 	}
 	
+	public boolean isVerbose() {
+		return verbose;
+	}
+	
+	public void setPrintTorOutput(boolean printTorOutput) {
+		this.printTorOutput = printTorOutput;
+	}
+	
+	public boolean isPrintTorOutput() {
+		return printTorOutput;
+	}
+	
 	public void start() {
 		if(isDefault) throw new UnsupportedOperationException("Circuit is default circuit");
 		if(isRunning() || isStarting()) return;
@@ -97,7 +109,7 @@ public class TorCircuit {
 		if(state.equals(CircuitState.EXITED)) return;
 		Runtime.getRuntime().addShutdownHook(new Thread(() ->  {
 			state = CircuitState.EXITED;
-			stop0();
+			stop0(true);
 		}));
 		circuitFolder.mkdirs();
 		File torRCFile = new File(circuitFolder, "torrc");
@@ -116,7 +128,7 @@ public class TorCircuit {
 						String.valueOf(port)
 					);
 			
-				if(verbose) {
+				if(printTorOutput) {
 					pb.redirectOutput(Redirect.INHERIT);
 					pb.redirectError(Redirect.INHERIT);
 				}
@@ -131,30 +143,38 @@ public class TorCircuit {
 				
 				int n = 0;
 				while(n++ < 5) {
+					debugLog("Trying to connect to Tor (Attempt " + n + "/5)");
 					if(connectionTest()) {
+						debugLog("Connected successfully!");
 						state = CircuitState.RUNNING;
 						return;
 					}
-					stop0();
 					Thread.sleep(1000);
 				}
+				stop0(false);
+				
+				debugLog("Restarting Tor");
 			}
 			state = CircuitState.STOPPED;
-			throw new FriendlyException("Failed to start tor circuit after 5 tries");
+			throw new FriendlyException("Failed to start Tor circuit after 5 tries");
 		} catch (IOException | InterruptedException e) {
 			state = CircuitState.STOPPED;
-			throw new FriendlyException("Failed to start tor circuit", e);
+			throw new FriendlyException("Failed to start Tor circuit", e);
 		}
+	}
+	
+	private void debugLog(String message) {
+		if(verbose) System.out.println("[" + host + ":" + port + " | " + state + "] " + message);
 	}
 	
 	public void stop() {
 		if(isDefault) throw new UnsupportedOperationException("Circuit is default circuit");
 		if(!isRunning()) return;
-		stop0();
+		stop0(true);
 		IOUtils.deleteFile(circuitFolder);
 	}
 	
-	private void stop0() {
+	private void stop0(boolean deleteFiles) {
 		if(!instanceProcess.isAlive()) return;
 		instanceProcess.destroy();
 		try {
@@ -162,7 +182,7 @@ public class TorCircuit {
 		} catch (InterruptedException e) {
 			throw new FriendlyException(e);
 		}finally {
-			IOUtils.deleteFile(circuitFolder);
+			if(deleteFiles) IOUtils.deleteFile(circuitFolder);
 		}
 	}
 	
@@ -172,7 +192,7 @@ public class TorCircuit {
 		if(isStarting()) return;
 		boolean needsStop = isRunning();
 		state = CircuitState.RESTARTING;
-		if(needsStop) stop0();
+		if(needsStop) stop0(true);
 		new Thread(this::start0, "Restart-Tor-Circuit_" + host + "-" + port).start();
 	}
 	
@@ -190,6 +210,7 @@ public class TorCircuit {
 	public boolean connectionTest() {
 		try {
 			HttpURLConnection con = createConnection("https://google.com");
+			con.setConnectTimeout(5000);
 			con.connect();
 			con.disconnect();
 			return true;
