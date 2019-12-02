@@ -59,14 +59,14 @@
 	<repositories>
 		<repository>
 			<id>graphite-official</id>
-			<url>http://graphite-official.com/repo</url>
+			<url>http://graphite-official.com/repo/</url>
 		</repository>
 	</repositories>
 	<dependencies>
 		<dependency>
-			<groupId>MrCore</groupId>
+			<groupId>me.mrletsplay</groupId>
 			<artifactId>MrCore</artifactId>
-			<version>2.1</version>
+			<version>2.2</version>
 		</dependency>
 	</dependencies>
 </project>
