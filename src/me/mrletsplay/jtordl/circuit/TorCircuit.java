@@ -62,6 +62,10 @@ public class TorCircuit {
 		return port;
 	}
 	
+	public Proxy getSocksProxy() {
+		return socksProxy;
+	}
+	
 	public Process getInstanceProcess() {
 		return instanceProcess;
 	}
