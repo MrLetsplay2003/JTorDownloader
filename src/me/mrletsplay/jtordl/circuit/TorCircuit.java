@@ -11,6 +11,8 @@ import java.net.Proxy;
 import java.net.Proxy.Type;
 import java.net.ServerSocket;
 import java.net.URL;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import me.mrletsplay.mrcore.io.IOUtils;
@@ -27,6 +29,7 @@ public class TorCircuit {
 	private boolean isDefault, verbose, printTorOutput;
 	private CircuitState state;
 	private Process instanceProcess;
+	private Map<String, String> defaultRequestProperties;
 	
 	private TorCircuit(File circuitFolder, String host, int port, boolean isDefault) {
 		if(!isDefault && !ensureOpen(host, port)) throw new FriendlyException("Address is not open");
@@ -36,6 +39,7 @@ public class TorCircuit {
 		this.socksProxy = new Proxy(Type.SOCKS, new InetSocketAddress(host, port));
 		this.isDefault = isDefault;
 		this.state = isDefault ? CircuitState.RUNNING : CircuitState.STOPPED;
+		this.defaultRequestProperties = new LinkedHashMap<>();
 	}
 	
 	public TorCircuit(File circuitFolder, String host, int port) {
@@ -100,6 +104,18 @@ public class TorCircuit {
 	
 	public boolean isPrintTorOutput() {
 		return printTorOutput;
+	}
+	
+	public void setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
+		this.defaultRequestProperties = defaultRequestProperties;
+	}
+	
+	public void addDefaultRequestProperty(String key, String value) {
+		this.defaultRequestProperties.put(key, value);
+	}
+	
+	public Map<String, String> getDefaultRequestProperties() {
+		return defaultRequestProperties;
 	}
 	
 	public void start() {
@@ -225,7 +241,9 @@ public class TorCircuit {
 	
 	public HttpURLConnection createConnection(URL url) throws FriendlyException {
 		try {
-			return (HttpURLConnection) url.openConnection(socksProxy);
+			HttpURLConnection con = (HttpURLConnection) url.openConnection(socksProxy);
+			defaultRequestProperties.forEach(con::setRequestProperty);
+			return con;
 		} catch (IOException e) {
 			throw new FriendlyException("Failed to open connection", e);
 		}
