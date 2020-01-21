@@ -57,7 +57,7 @@ public class JTorDownloader {
 			circuit.awaitState(CircuitState.RUNNING);
 			HttpURLConnection con = circuit.createConnection(url);
 			con.setRequestMethod("HEAD");
-			return con.getContentLength();
+			return con.getContentLengthLong();
 		}catch(IOException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
