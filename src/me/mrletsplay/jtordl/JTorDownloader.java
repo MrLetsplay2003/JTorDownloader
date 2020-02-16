@@ -38,6 +38,7 @@ public class JTorDownloader {
 			HttpURLConnection con = circuit.createConnection(url);
 			con.setRequestProperty("Range", "bytes=" + rangeStart + "-" + (rangeEnd == -1 ? "" : rangeEnd));
 			con.connect();
+			if(con.getResponseCode() >= 400 && con.getResponseCode() < 600) throw new FriendlyException("Server responded with status " + con.getResponseCode());
 			return con.getInputStream();
 		}catch(IOException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
@@ -57,6 +58,8 @@ public class JTorDownloader {
 			circuit.awaitState(CircuitState.RUNNING);
 			HttpURLConnection con = circuit.createConnection(url);
 			con.setRequestMethod("HEAD");
+			con.connect();
+			if(con.getResponseCode() >= 400) throw new FriendlyException("Server responded with status " + con.getResponseCode());
 			return con.getContentLengthLong();
 		}catch(IOException e) {
 			throw new FriendlyException("Failed to create or open connection", e);

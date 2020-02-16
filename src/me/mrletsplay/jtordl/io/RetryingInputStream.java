@@ -36,7 +36,7 @@ public class RetryingInputStream extends InputStream {
 		if(closed) throw new IllegalStateException("Stream is closed");
 		try {
 			int read = in.read();
-			if(read > 0) offset++;
+			if(read != -1) offset++;
 			return read;
 		}catch(IOException e) {
 			in = retryMethod.apply(offset);
