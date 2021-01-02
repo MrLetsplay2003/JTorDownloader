@@ -2,9 +2,12 @@ package me.mrletsplay.jtordl;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 
@@ -18,8 +21,10 @@ public class JTorDownloader {
 	public static InputStream createStream(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
-			return circuit.createConnection(url).getInputStream();
-		} catch (IOException e) {
+			HttpClient client = circuit.createHttpClient();
+			HttpRequest r = HttpRequest.newBuilder(url.toURI()).build();
+			return client.send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
+		} catch (IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
 	}
@@ -35,12 +40,12 @@ public class JTorDownloader {
 	public static InputStream createStream(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) throws FriendlyException {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
-			HttpURLConnection con = circuit.createConnection(url);
-			con.setRequestProperty("Range", "bytes=" + rangeStart + "-" + (rangeEnd == -1 ? "" : rangeEnd));
-			con.connect();
-			if(con.getResponseCode() >= 400 && con.getResponseCode() < 600) throw new FriendlyException("Server responded with status " + con.getResponseCode());
-			return con.getInputStream();
-		}catch(IOException e) {
+			HttpClient client = circuit.createHttpClient();
+			HttpRequest r = HttpRequest.newBuilder(url.toURI())
+					.header("Range", "bytes=" + rangeStart + "-" + (rangeEnd == -1 ? "" : rangeEnd))
+					.build();
+			return client.send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
+		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
 	}
@@ -56,12 +61,13 @@ public class JTorDownloader {
 	public static long getContentLength(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
-			HttpURLConnection con = circuit.createConnection(url);
-			con.setRequestMethod("HEAD");
-			con.connect();
-			if(con.getResponseCode() >= 400) throw new FriendlyException("Server responded with status " + con.getResponseCode());
-			return con.getContentLengthLong();
-		}catch(IOException e) {
+			HttpClient client = circuit.createHttpClient();
+			HttpRequest r = HttpRequest.newBuilder(url.toURI())
+					.method("HEAD", HttpRequest.BodyPublishers.noBody())
+					.build();
+			return Long.parseLong(client.send(r, HttpResponse.BodyHandlers.ofInputStream()).headers()
+					.firstValue("Content-Length").orElseThrow(() -> new FriendlyException("Unknown content length")));
+		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
 	}

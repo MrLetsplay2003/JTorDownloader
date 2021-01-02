@@ -9,9 +9,15 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Proxy;
 import java.net.Proxy.Type;
+import java.net.ProxySelector;
 import java.net.ServerSocket;
+import java.net.SocketAddress;
+import java.net.URI;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -227,6 +233,7 @@ public class TorCircuit {
 		}
 	}
 	
+	@Deprecated
 	public boolean connectionTest() {
 		try {
 			HttpURLConnection con = createConnection("https://google.com");
@@ -238,7 +245,8 @@ public class TorCircuit {
 			return false;
 		}
 	}
-	
+
+	@Deprecated
 	public HttpURLConnection createConnection(URL url) throws FriendlyException {
 		try {
 			HttpURLConnection con = (HttpURLConnection) url.openConnection(socksProxy);
@@ -248,13 +256,34 @@ public class TorCircuit {
 			throw new FriendlyException("Failed to open connection", e);
 		}
 	}
-	
+
+	@Deprecated
 	public HttpURLConnection createConnection(String url) throws FriendlyException {
 		try {
 			return createConnection(new URL(url));
 		} catch (MalformedURLException e) {
 			throw new FriendlyException("Failed to open connection", e);
 		}
+	}
+
+	public HttpClient createHttpClient() {
+		HttpClient client = HttpClient.newBuilder()
+				.proxy(new ProxySelector() {
+					
+					@Override
+					public List<Proxy> select(URI uri) {
+						return Arrays.asList(getSocksProxy());
+					}
+					
+					@Override
+					public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
+						throw new FriendlyException("Failed to connect", ioe);
+					}
+				})
+				.followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+				.build();
+		
+		return client;
 	}
 	
 	public static TorCircuit attachDefault(String host, int port) {
