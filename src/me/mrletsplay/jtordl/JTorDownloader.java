@@ -66,7 +66,7 @@ public class JTorDownloader {
 					.method("HEAD", HttpRequest.BodyPublishers.noBody())
 					.build();
 			return Long.parseLong(client.send(r, HttpResponse.BodyHandlers.ofInputStream()).headers()
-					.firstValue("Content-Length").orElseThrow(() -> new FriendlyException("Unknown content length")));
+					.firstValue("content-length").orElseThrow(() -> new FriendlyException("Unknown content length")));
 		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
