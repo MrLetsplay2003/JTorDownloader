@@ -6,6 +6,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.concurrent.Callable;
@@ -61,11 +62,12 @@ public class JTorDownloader {
 	public static long getContentLength(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
-			HttpClient client = circuit.createHttpClient();
+			HttpClient client = circuit.createHttpClient();	
 			HttpRequest r = HttpRequest.newBuilder(url.toURI())
 					.method("HEAD", HttpRequest.BodyPublishers.noBody())
 					.build();
-			return Long.parseLong(client.send(r, HttpResponse.BodyHandlers.ofInputStream()).headers()
+			HttpHeaders headers = client.send(r, HttpResponse.BodyHandlers.ofInputStream()).headers();
+			return Long.parseLong(headers
 					.firstValue("content-length").orElseThrow(() -> new FriendlyException("Unknown content length")));
 		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);

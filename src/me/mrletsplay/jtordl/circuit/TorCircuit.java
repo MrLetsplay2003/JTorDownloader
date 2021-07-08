@@ -15,6 +15,7 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpClient;
+import java.net.http.HttpClient.Version;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -281,6 +282,7 @@ public class TorCircuit {
 					}
 				})
 				.followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+				.version(Version.HTTP_2)
 				.build();
 		
 		return client;
