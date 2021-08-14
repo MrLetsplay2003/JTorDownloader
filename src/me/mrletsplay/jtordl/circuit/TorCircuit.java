@@ -16,6 +16,7 @@ import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Version;
+import java.net.http.HttpRequest;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,10 +34,11 @@ public class TorCircuit {
 	private String host;
 	private int port;
 	private Proxy socksProxy;
+	private HttpClient httpClient;
 	private boolean isDefault, verbose, printTorOutput;
 	private CircuitState state;
 	private Process instanceProcess;
-	private Map<String, String> defaultRequestProperties;
+	private Map<String, String> defaultHeaders;
 	
 	private TorCircuit(File circuitFolder, String host, int port, boolean isDefault) {
 		if(!isDefault && !ensureOpen(host, port)) throw new FriendlyException("Address is not open");
@@ -44,9 +46,10 @@ public class TorCircuit {
 		this.host = host;
 		this.port = port;
 		this.socksProxy = new Proxy(Type.SOCKS, new InetSocketAddress(host, port));
+		this.httpClient = createHttpClient();
 		this.isDefault = isDefault;
 		this.state = isDefault ? CircuitState.RUNNING : CircuitState.STOPPED;
-		this.defaultRequestProperties = new LinkedHashMap<>();
+		this.defaultHeaders = new LinkedHashMap<>();
 	}
 	
 	public TorCircuit(File circuitFolder, String host, int port) {
@@ -113,16 +116,31 @@ public class TorCircuit {
 		return printTorOutput;
 	}
 	
+	@Deprecated
 	public void setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
-		this.defaultRequestProperties = defaultRequestProperties;
+		setDefaultHeaders(defaultRequestProperties);
 	}
-	
+
+	@Deprecated
 	public void addDefaultRequestProperty(String key, String value) {
-		this.defaultRequestProperties.put(key, value);
+		addDefaultHeader(key, value);
+	}
+
+	@Deprecated
+	public Map<String, String> getDefaultRequestProperties() {
+		return getDefaultHeaders();
 	}
 	
-	public Map<String, String> getDefaultRequestProperties() {
-		return defaultRequestProperties;
+	public void setDefaultHeaders(Map<String, String> defaultRequestProperties) {
+		this.defaultHeaders = defaultRequestProperties;
+	}
+	
+	public void addDefaultHeader(String key, String value) {
+		this.defaultHeaders.put(key, value);
+	}
+	
+	public Map<String, String> getDefaultHeaders() {
+		return defaultHeaders;
 	}
 	
 	public void start() {
@@ -251,7 +269,7 @@ public class TorCircuit {
 	public HttpURLConnection createConnection(URL url) throws FriendlyException {
 		try {
 			HttpURLConnection con = (HttpURLConnection) url.openConnection(socksProxy);
-			defaultRequestProperties.forEach(con::setRequestProperty);
+			defaultHeaders.forEach(con::setRequestProperty);
 			return con;
 		} catch (IOException e) {
 			throw new FriendlyException("Failed to open connection", e);
@@ -267,6 +285,7 @@ public class TorCircuit {
 		}
 	}
 
+	@Deprecated
 	public HttpClient createHttpClient() {
 		HttpClient client = HttpClient.newBuilder()
 				.proxy(new ProxySelector() {
@@ -286,6 +305,23 @@ public class TorCircuit {
 				.build();
 		
 		return client;
+	}
+	
+	public HttpClient getHttpClient() {
+		return httpClient;
+	}
+	
+	private HttpRequest.Builder initializeRequestBuilder(HttpRequest.Builder requestBuilder) {
+		defaultHeaders.forEach((k, v) -> requestBuilder.header(k, v));
+		return requestBuilder;
+	}
+	
+	public HttpRequest.Builder newRequestBuilder() {
+		return initializeRequestBuilder(HttpRequest.newBuilder());
+	}
+	
+	public HttpRequest.Builder newRequestBuilder(URI uri) {
+		return initializeRequestBuilder(HttpRequest.newBuilder(uri));
 	}
 	
 	public static TorCircuit attachDefault(String host, int port) {

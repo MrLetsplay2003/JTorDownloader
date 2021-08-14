@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -22,9 +21,8 @@ public class JTorDownloader {
 	public static InputStream createStream(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
-			HttpClient client = circuit.createHttpClient();
-			HttpRequest r = HttpRequest.newBuilder(url.toURI()).build();
-			return client.send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
+			HttpRequest r = circuit.newRequestBuilder(url.toURI()).build();
+			return circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
 		} catch (IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
@@ -41,11 +39,10 @@ public class JTorDownloader {
 	public static InputStream createStream(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) throws FriendlyException {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
-			HttpClient client = circuit.createHttpClient();
-			HttpRequest r = HttpRequest.newBuilder(url.toURI())
+			HttpRequest r = circuit.newRequestBuilder(url.toURI())
 					.header("Range", "bytes=" + rangeStart + "-" + (rangeEnd == -1 ? "" : rangeEnd))
 					.build();
-			return client.send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
+			return circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
 		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
@@ -62,11 +59,10 @@ public class JTorDownloader {
 	public static long getContentLength(TorCircuit circuit, URL url) throws FriendlyException {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
-			HttpClient client = circuit.createHttpClient();	
-			HttpRequest r = HttpRequest.newBuilder(url.toURI())
+			HttpRequest r = circuit.newRequestBuilder(url.toURI())
 					.method("HEAD", HttpRequest.BodyPublishers.noBody())
 					.build();
-			HttpHeaders headers = client.send(r, HttpResponse.BodyHandlers.ofInputStream()).headers();
+			HttpHeaders headers = circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream()).headers();
 			return Long.parseLong(headers
 					.firstValue("content-length").orElseThrow(() -> new FriendlyException("Unknown content length")));
 		}catch(IOException | URISyntaxException | InterruptedException e) {
