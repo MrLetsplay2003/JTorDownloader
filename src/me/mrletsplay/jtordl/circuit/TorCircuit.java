@@ -294,7 +294,6 @@ public class TorCircuit {
 					
 					@Override
 					public List<Proxy> select(URI uri) {
-						System.out.println("PROXY");
 						return Arrays.asList(getSocksProxy());
 					}
 					
