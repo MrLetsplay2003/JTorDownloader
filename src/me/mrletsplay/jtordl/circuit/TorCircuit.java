@@ -45,7 +45,7 @@ public class TorCircuit {
 		this.circuitFolder = circuitFolder;
 		this.host = host;
 		this.port = port;
-		this.socksProxy = new Proxy(Type.SOCKS, new InetSocketAddress(host, port));
+		this.socksProxy = new Proxy(Type.HTTP, new InetSocketAddress(host, port));
 		this.httpClient = createHttpClient();
 		this.isDefault = isDefault;
 		this.state = isDefault ? CircuitState.RUNNING : CircuitState.STOPPED;
@@ -170,6 +170,8 @@ public class TorCircuit {
 						"--DataDirectory",
 						circuitFolder.getAbsolutePath(),
 						"--SocksPort",
+						"0",
+						"--HTTPTunnelPort",
 						String.valueOf(port)
 					);
 			
@@ -292,6 +294,7 @@ public class TorCircuit {
 					
 					@Override
 					public List<Proxy> select(URI uri) {
+						System.out.println("PROXY");
 						return Arrays.asList(getSocksProxy());
 					}
 					
