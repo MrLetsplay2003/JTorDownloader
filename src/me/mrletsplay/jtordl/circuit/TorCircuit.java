@@ -17,6 +17,9 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -238,7 +241,7 @@ public class TorCircuit {
 				int n = 0;
 				while(n++ < 5) {
 					debugLog("Trying to connect to Tor (Attempt " + n + "/5)");
-					if(connectionTest()) {
+					if(testConnection()) {
 						debugLog("Connected successfully!");
 						state = CircuitState.RUNNING;
 						return;
@@ -298,6 +301,18 @@ public class TorCircuit {
 			} catch (InterruptedException e) {
 				throw new FriendlyException(e);
 			}
+		}
+	}
+	
+	private boolean testConnection() {
+		try {
+			HttpRequest r = newRequestBuilder(new URI("https://google.com"))
+					.timeout(Duration.of(5, ChronoUnit.SECONDS))
+					.build();
+			httpClient.send(r, HttpResponse.BodyHandlers.discarding());
+			return true;
+		} catch (Exception e) {
+			return false;
 		}
 	}
 	
