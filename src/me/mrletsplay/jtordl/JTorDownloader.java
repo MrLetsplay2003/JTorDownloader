@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.concurrent.Callable;
@@ -62,8 +61,8 @@ public class JTorDownloader {
 			HttpRequest r = circuit.newRequestBuilder(url.toURI())
 					.method("HEAD", HttpRequest.BodyPublishers.noBody())
 					.build();
-			HttpHeaders headers = circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream()).headers();
-			return Long.parseLong(headers
+			HttpResponse<Void> res = circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.discarding());
+			return Long.parseLong(res.headers()
 					.firstValue("content-length").orElseThrow(() -> new FriendlyException("Unknown content length")));
 		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);

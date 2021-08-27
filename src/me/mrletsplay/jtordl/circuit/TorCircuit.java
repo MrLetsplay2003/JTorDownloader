@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import me.mrletsplay.mrcore.io.IOUtils;
 import me.mrletsplay.mrcore.misc.FriendlyException;
@@ -33,37 +34,74 @@ public class TorCircuit {
 	private File circuitFolder;
 	private String host;
 	private int port;
-	private Proxy socksProxy;
+	private Proxy httpProxy;
 	private HttpClient httpClient;
 	private boolean isDefault, verbose, printTorOutput;
 	private CircuitState state;
 	private Process instanceProcess;
 	private Map<String, String> defaultHeaders;
 	
-	private TorCircuit(File circuitFolder, String host, int port, boolean isDefault) {
+	private TorCircuit(File circuitFolder, String host, int port, boolean isDefault, Consumer<HttpClient.Builder> builderFunction) {
 		if(!isDefault && !ensureOpen(host, port)) throw new FriendlyException("Address is not open");
 		this.circuitFolder = circuitFolder;
 		this.host = host;
 		this.port = port;
-		this.socksProxy = new Proxy(Type.HTTP, new InetSocketAddress(host, port));
-		this.httpClient = createHttpClient();
+		this.httpProxy = new Proxy(Type.HTTP, new InetSocketAddress(host, port));
+		HttpClient.Builder b = createHttpClientBuilder();
+		if(builderFunction != null) builderFunction.accept(b);
+		this.httpClient = b.build();
 		this.isDefault = isDefault;
 		this.state = isDefault ? CircuitState.RUNNING : CircuitState.STOPPED;
 		this.defaultHeaders = new LinkedHashMap<>();
 	}
-	
-	public TorCircuit(File circuitFolder, String host, int port) {
-		this(circuitFolder, host, port, false);
+
+	/**
+	 * Creates a tor circuit with an HTTP proxy listening on the specified <code>host</code> and <code>port</code>
+	 * @param circuitFolder The folder in which to store the <code>torrc</code> file as well as any session-specific files required by Tor
+	 * @param host The host for the HTTP proxy to listen on
+	 * @param port The port for the HTTP proxy to listen on, set to <code>-1</code> to automatically use a free port
+	 * @param builderFunction A {@link Consumer} to further customize the default client provided by {@link #getHttpClient()} before it's built
+	 */
+	public TorCircuit(File circuitFolder, String host, int port, Consumer<HttpClient.Builder> builderFunction) {
+		this(circuitFolder, host, port == -1 ? getFreePort(host) : port, false, builderFunction);
 	}
 	
+	/**
+	 * Creates a tor circuit with an HTTP proxy listening on the specified <code>host</code> and <code>port</code>
+	 * @param circuitFolder The folder in which to store the <code>torrc</code> file as well as any session-specific files required by Tor
+	 * @param host The host for the HTTP proxy to listen on
+	 * @param port The port for the HTTP proxy to listen on, set to <code>-1</code> to automatically use a free port
+	 */
+	public TorCircuit(File circuitFolder, String host, int port) {
+		this(circuitFolder, host, port, null);
+	}
+	
+	/**
+	 * @deprecated Use {@link #TorCircuit(File, String, int)} with a specific host instead
+	 * @param circuitFolder
+	 * @param port
+	 */
+	@Deprecated
 	public TorCircuit(File circuitFolder, int port) {
 		this(circuitFolder, "127.0.0.1", port);
 	}
-	
+
+	/**
+	 * @deprecated Use {@link #TorCircuit(File, String, int)} with <code>port</code> set to <code>-1</code> instead
+	 * @param circuitFolder
+	 * @param port
+	 */
+	@Deprecated
 	public TorCircuit(File circuitFolder, String host) {
 		this(circuitFolder, "127.0.0.1", getFreePort(host));
 	}
-	
+
+	/**
+	 * @deprecated Use {@link #TorCircuit(File, String, int)} with a specific host and <code>port</code> set to <code>-1</code> instead
+	 * @param circuitFolder
+	 * @param port
+	 */
+	@Deprecated
 	public TorCircuit(File circuitFolder) {
 		this(circuitFolder, "127.0.0.1");
 	}
@@ -76,8 +114,17 @@ public class TorCircuit {
 		return port;
 	}
 	
+	/**
+	 * The proxy is no longer a SOCKS proxy. Use {@link #getHttpProxy()} instead
+	 * @return
+	 */
+	@Deprecated
 	public Proxy getSocksProxy() {
-		return socksProxy;
+		return httpProxy;
+	}
+	
+	public Proxy getHttpProxy() {
+		return httpProxy;
 	}
 	
 	public Process getInstanceProcess() {
@@ -270,7 +317,7 @@ public class TorCircuit {
 	@Deprecated
 	public HttpURLConnection createConnection(URL url) throws FriendlyException {
 		try {
-			HttpURLConnection con = (HttpURLConnection) url.openConnection(socksProxy);
+			HttpURLConnection con = (HttpURLConnection) url.openConnection(httpProxy);
 			defaultHeaders.forEach(con::setRequestProperty);
 			return con;
 		} catch (IOException e) {
@@ -289,7 +336,11 @@ public class TorCircuit {
 
 	@Deprecated
 	public HttpClient createHttpClient() {
-		HttpClient client = HttpClient.newBuilder()
+		return createHttpClientBuilder().build();
+	}
+
+	private HttpClient.Builder createHttpClientBuilder() {
+		return HttpClient.newBuilder()
 				.proxy(new ProxySelector() {
 					
 					@Override
@@ -302,11 +353,8 @@ public class TorCircuit {
 						throw new FriendlyException("Failed to connect", ioe);
 					}
 				})
-				.followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
-				.version(Version.HTTP_2)
-				.build();
-		
-		return client;
+				.followRedirects(HttpClient.Redirect.ALWAYS)
+				.version(Version.HTTP_2);
 	}
 	
 	public HttpClient getHttpClient() {
@@ -326,10 +374,20 @@ public class TorCircuit {
 		return initializeRequestBuilder(HttpRequest.newBuilder(uri));
 	}
 	
-	public static TorCircuit attachDefault(String host, int port) {
-		return new TorCircuit(null, host, port, true);
+	public static TorCircuit attachDefault(String host, int port, Consumer<HttpClient.Builder> builderFunction) {
+		return new TorCircuit(null, host, port, true, builderFunction);
 	}
 	
+	public static TorCircuit attachDefault(String host, int port) {
+		return attachDefault(host, port, null);
+	}
+	
+	/**
+	 * Use {@link #attachDefault(String, int)} with a specific host instead
+	 * @param port
+	 * @return
+	 */
+	@Deprecated
 	public static TorCircuit attachDefault(int port) {
 		return attachDefault("127.0.0.1", port);
 	}
@@ -339,7 +397,7 @@ public class TorCircuit {
 	}
 	
 	private static boolean ensureOpen(String host, int port) {
-		try(ServerSocket ss = new ServerSocket(port, 0, InetAddress.getByName(host))){
+		try(ServerSocket ss = new ServerSocket(port, 1, InetAddress.getByName(host))){
 			ss.close();
 			return true;
 		}catch(Exception e) {
