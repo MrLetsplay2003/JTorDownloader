@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>me.mrletsplay</groupId>
 	<artifactId>JTorDownloader</artifactId>
-	<version>3.2</version>
+	<version>4.0</version>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
 

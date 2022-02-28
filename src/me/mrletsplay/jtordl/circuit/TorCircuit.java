@@ -39,7 +39,7 @@ public class TorCircuit {
 	private int port;
 	private Proxy httpProxy;
 	private HttpClient httpClient;
-	private boolean isDefault, verbose, printTorOutput;
+	private boolean isDefault, verbose, printTorOutput, preferIPv6;
 	private CircuitState state;
 	private Process instanceProcess;
 	private Map<String, String> defaultHeaders;
@@ -166,6 +166,14 @@ public class TorCircuit {
 		return printTorOutput;
 	}
 	
+	public void setPreferIPv6(boolean preferIPv6) {
+		this.preferIPv6 = preferIPv6;
+	}
+	
+	public boolean isPreferIPv6() {
+		return preferIPv6;
+	}
+	
 	@Deprecated
 	public void setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
 		setDefaultHeaders(defaultRequestProperties);
@@ -222,7 +230,7 @@ public class TorCircuit {
 						"--SocksPort",
 						"0",
 						"--HTTPTunnelPort",
-						String.valueOf(port)
+						String.valueOf(port) + (preferIPv6 ? " PreferIPv6" : "")
 					);
 			
 				if(printTorOutput) {
@@ -360,7 +368,7 @@ public class TorCircuit {
 					
 					@Override
 					public List<Proxy> select(URI uri) {
-						return Arrays.asList(getSocksProxy());
+						return Arrays.asList(getHttpProxy());
 					}
 					
 					@Override

@@ -8,10 +8,10 @@ import java.net.URL;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.concurrent.Callable;
-import java.util.function.Function;
 
 import me.mrletsplay.jtordl.circuit.CircuitState;
 import me.mrletsplay.jtordl.circuit.TorCircuit;
+import me.mrletsplay.jtordl.io.InputProviderFunction;
 import me.mrletsplay.jtordl.io.RetryingInputStream;
 import me.mrletsplay.mrcore.misc.FriendlyException;
 
@@ -63,7 +63,7 @@ public class JTorDownloader {
 					.build();
 			HttpResponse<Void> res = circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.discarding());
 			return Long.parseLong(res.headers()
-					.firstValue("content-length").orElseThrow(() -> new FriendlyException("Unknown content length")));
+					.firstValue("content-length").orElseThrow(() -> new FriendlyException("Unknown content length (Status code: " + res.statusCode() + ", Headers: " + res.headers() + ")")));
 		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
@@ -79,7 +79,7 @@ public class JTorDownloader {
 	
 	public static RetryingInputStream createStableInputStream(TorCircuit circuit, URL url) throws FriendlyException {
 		InputStream initialInput = createStream(circuit, url);
-		Function<Long, InputStream> newInputFct = newInput(circuit, url, 0, -1);
+		InputProviderFunction newInputFct = newInput(circuit, url, 0, -1);
 		return new RetryingInputStream(initialInput, newInputFct);
 	}
 	
@@ -93,7 +93,7 @@ public class JTorDownloader {
 	
 	public static RetryingInputStream createStableInputStream(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) throws FriendlyException {
 		InputStream initialInput = createStream(circuit, url, rangeStart, rangeEnd);
-		Function<Long, InputStream> newInputFct = newInput(circuit, url, rangeStart, rangeEnd);
+		InputProviderFunction newInputFct = newInput(circuit, url, rangeStart, rangeEnd);
 		return new RetryingInputStream(initialInput, newInputFct);
 	}
 	
@@ -105,9 +105,14 @@ public class JTorDownloader {
 		}
 	}
 	
-	private static Function<Long, InputStream> newInput(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) {
-		return offset -> {
+	private static InputProviderFunction newInput(TorCircuit circuit, URL url, long rangeStart, long rangeEnd) {
+		return (offset, forceNewSource) -> {
 			try {
+				if(forceNewSource) {
+					circuit.restart();
+					circuit.awaitState(CircuitState.RUNNING);
+				}
+				
 				return tryMultiple(() -> createStream(circuit, url, rangeStart + offset, rangeEnd), 5);
 			} catch (Exception e) {
 				circuit.restart();
