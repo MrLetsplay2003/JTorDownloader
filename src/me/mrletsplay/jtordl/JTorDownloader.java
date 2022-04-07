@@ -21,7 +21,9 @@ public class JTorDownloader {
 		try {
 			circuit.awaitState(CircuitState.RUNNING);
 			HttpRequest r = circuit.newRequestBuilder(url.toURI()).build();
-			return circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
+			HttpResponse<InputStream> res = circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream());
+			if(res.statusCode() / 100 != 2) throw new FriendlyException("Got status code " + res.statusCode());
+			return res.body();
 		} catch (IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
@@ -41,7 +43,9 @@ public class JTorDownloader {
 			HttpRequest r = circuit.newRequestBuilder(url.toURI())
 					.header("Range", "bytes=" + rangeStart + "-" + (rangeEnd == -1 ? "" : rangeEnd))
 					.build();
-			return circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream()).body();
+			HttpResponse<InputStream> res = circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.ofInputStream());
+			if(res.statusCode() / 100 != 2) throw new FriendlyException("Got status code " + res.statusCode());
+			return res.body();
 		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
@@ -63,7 +67,8 @@ public class JTorDownloader {
 					.build();
 			HttpResponse<Void> res = circuit.getHttpClient().send(r, HttpResponse.BodyHandlers.discarding());
 			return Long.parseLong(res.headers()
-					.firstValue("content-length").orElseThrow(() -> new FriendlyException("Unknown content length (Status code: " + res.statusCode() + ", Headers: " + res.headers() + ")")));
+					.firstValue("content-length")
+					.orElseThrow(() -> new FriendlyException("Unknown content length (Status code: " + res.statusCode() + ", Headers: " + res.headers() + ")")));
 		}catch(IOException | URISyntaxException | InterruptedException e) {
 			throw new FriendlyException("Failed to create or open connection", e);
 		}
