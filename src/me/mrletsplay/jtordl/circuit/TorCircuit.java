@@ -376,7 +376,7 @@ public class TorCircuit {
 						throw new FriendlyException("Failed to connect", ioe);
 					}
 				})
-				.followRedirects(HttpClient.Redirect.ALWAYS)
+				.followRedirects(HttpClient.Redirect.NORMAL)
 				.version(Version.HTTP_2);
 	}
 	
