@@ -27,13 +27,15 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import javax.net.ServerSocketFactory;
+
 import me.mrletsplay.mrcore.io.IOUtils;
 import me.mrletsplay.mrcore.misc.FriendlyException;
 
 public class TorCircuit {
-	
+
 	private static String torPath = "tor";
-	
+
 	private File circuitFolder;
 	private String host;
 	private int port;
@@ -43,9 +45,9 @@ public class TorCircuit {
 	private CircuitState state;
 	private Process instanceProcess;
 	private Map<String, String> defaultHeaders;
-	
+
 	private TorCircuit(File circuitFolder, String host, int port, boolean isDefault, Consumer<HttpClient.Builder> builderFunction) {
-		if(!isDefault && !ensureOpen(host, port)) throw new FriendlyException("Address is not open");
+		if(!isDefault && !ensureOpen(host, port)) throw new FriendlyException("Address is not open: " + host + ":" + port);
 		this.circuitFolder = circuitFolder;
 		this.host = host;
 		this.port = port;
@@ -68,7 +70,7 @@ public class TorCircuit {
 	public TorCircuit(File circuitFolder, String host, int port, Consumer<HttpClient.Builder> builderFunction) {
 		this(circuitFolder, host, port == -1 ? getFreePort(host) : port, false, builderFunction);
 	}
-	
+
 	/**
 	 * Creates a tor circuit with an HTTP proxy listening on the specified <code>host</code> and <code>port</code>
 	 * @param circuitFolder The folder in which to store the <code>torrc</code> file as well as any session-specific files required by Tor
@@ -78,7 +80,7 @@ public class TorCircuit {
 	public TorCircuit(File circuitFolder, String host, int port) {
 		this(circuitFolder, host, port, null);
 	}
-	
+
 	/**
 	 * @deprecated Use {@link #TorCircuit(File, String, int)} with a specific host instead
 	 * @param circuitFolder
@@ -92,7 +94,7 @@ public class TorCircuit {
 	/**
 	 * @deprecated Use {@link #TorCircuit(File, String, int)} with <code>port</code> set to <code>-1</code> instead
 	 * @param circuitFolder
-	 * @param port
+	 * @param host
 	 */
 	@Deprecated
 	public TorCircuit(File circuitFolder, String host) {
@@ -102,21 +104,20 @@ public class TorCircuit {
 	/**
 	 * @deprecated Use {@link #TorCircuit(File, String, int)} with a specific host and <code>port</code> set to <code>-1</code> instead
 	 * @param circuitFolder
-	 * @param port
 	 */
 	@Deprecated
 	public TorCircuit(File circuitFolder) {
 		this(circuitFolder, "127.0.0.1");
 	}
-	
+
 	public String getHost() {
 		return host;
 	}
-	
+
 	public int getPort() {
 		return port;
 	}
-	
+
 	/**
 	 * The proxy is no longer a SOCKS proxy. Use {@link #getHttpProxy()} instead
 	 * @return
@@ -125,55 +126,55 @@ public class TorCircuit {
 	public Proxy getSocksProxy() {
 		return httpProxy;
 	}
-	
+
 	public Proxy getHttpProxy() {
 		return httpProxy;
 	}
-	
+
 	public Process getInstanceProcess() {
 		return instanceProcess;
 	}
-	
+
 	public boolean isDefault() {
 		return isDefault;
 	}
-	
+
 	public boolean isRunning() {
 		return state.isRunningState();
 	}
-	
+
 	public boolean isStarting() {
 		return state.ordinal() < CircuitState.RUNNING.ordinal();
 	}
-	
+
 	public CircuitState getState() {
 		return state;
 	}
-	
+
 	public void setVerbose(boolean verbose) {
 		this.verbose = verbose;
 	}
-	
+
 	public boolean isVerbose() {
 		return verbose;
 	}
-	
+
 	public void setPrintTorOutput(boolean printTorOutput) {
 		this.printTorOutput = printTorOutput;
 	}
-	
+
 	public boolean isPrintTorOutput() {
 		return printTorOutput;
 	}
-	
+
 	public void setPreferIPv6(boolean preferIPv6) {
 		this.preferIPv6 = preferIPv6;
 	}
-	
+
 	public boolean isPreferIPv6() {
 		return preferIPv6;
 	}
-	
+
 	@Deprecated
 	public void setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
 		setDefaultHeaders(defaultRequestProperties);
@@ -188,26 +189,26 @@ public class TorCircuit {
 	public Map<String, String> getDefaultRequestProperties() {
 		return getDefaultHeaders();
 	}
-	
+
 	public void setDefaultHeaders(Map<String, String> defaultRequestProperties) {
 		this.defaultHeaders = defaultRequestProperties;
 	}
-	
+
 	public void addDefaultHeader(String key, String value) {
 		this.defaultHeaders.put(key, value);
 	}
-	
+
 	public Map<String, String> getDefaultHeaders() {
 		return defaultHeaders;
 	}
-	
+
 	public void start() {
 		if(isDefault) throw new UnsupportedOperationException("Circuit is default circuit");
 		if(isRunning() || isStarting()) return;
 		state = CircuitState.STARTING;
 		new Thread(this::start0, "Start-Tor-Circuit_" + host + "-" + port).start();
 	}
-	
+
 	private void start0() throws FriendlyException {
 		if(state.equals(CircuitState.EXITED)) return;
 		Runtime.getRuntime().addShutdownHook(new Thread(() ->  {
@@ -217,7 +218,7 @@ public class TorCircuit {
 		circuitFolder.mkdirs();
 		File torRCFile = new File(circuitFolder, "torrc");
 		IOUtils.createFile(torRCFile);
-		
+
 		try {
 			int nTries = 5;
 			while(nTries-- > 0) {
@@ -232,20 +233,20 @@ public class TorCircuit {
 						"--HTTPTunnelPort",
 						String.valueOf(port) + (preferIPv6 ? " PreferIPv6" : "")
 					);
-			
+
 				if(printTorOutput) {
 					pb.redirectOutput(Redirect.INHERIT);
 					pb.redirectError(Redirect.INHERIT);
 				}
-				
+
 				instanceProcess = pb.start();
-				
+
 				try {
 					Thread.sleep(5000); // Wait for Tor to start
 				} catch (InterruptedException e) {
 					throw new FriendlyException(e);
 				}
-				
+
 				int n = 0;
 				while(n++ < 5) {
 					debugLog("Trying to connect to Tor (Attempt " + n + "/5)");
@@ -257,7 +258,7 @@ public class TorCircuit {
 					Thread.sleep(1000);
 				}
 				stop0(false);
-				
+
 				debugLog("Restarting Tor");
 			}
 			state = CircuitState.STOPPED;
@@ -267,18 +268,18 @@ public class TorCircuit {
 			throw new FriendlyException("Failed to start Tor circuit", e);
 		}
 	}
-	
+
 	private void debugLog(String message) {
 		if(verbose) System.out.println("[" + host + ":" + port + " | " + state + "] " + message);
 	}
-	
+
 	public void stop() {
 		if(isDefault) throw new UnsupportedOperationException("Circuit is default circuit");
 		if(!isRunning()) return;
 		stop0(true);
 		IOUtils.deleteFile(circuitFolder);
 	}
-	
+
 	private void stop0(boolean deleteFiles) {
 		if(!instanceProcess.isAlive()) return;
 		instanceProcess.destroy();
@@ -290,7 +291,7 @@ public class TorCircuit {
 			if(deleteFiles) IOUtils.deleteFile(circuitFolder);
 		}
 	}
-	
+
 	public void restart() {
 		if(state.equals(CircuitState.EXITED)) return;
 		if(isDefault) throw new UnsupportedOperationException("Circuit is default circuit");
@@ -300,7 +301,7 @@ public class TorCircuit {
 		if(needsStop) stop0(true);
 		new Thread(this::start0, "Restart-Tor-Circuit_" + host + "-" + port).start();
 	}
-	
+
 	public void awaitState(CircuitState state) {
 		if(state.ordinal() < CircuitState.RUNNING.ordinal()) throw new FriendlyException("Can't await pre-RUNNING state");
 		while(this.state.ordinal() < state.ordinal()) {
@@ -311,7 +312,7 @@ public class TorCircuit {
 			}
 		}
 	}
-	
+
 	private boolean testConnection() {
 		try {
 			HttpRequest r = newRequestBuilder(new URI("https://google.com"))
@@ -323,7 +324,7 @@ public class TorCircuit {
 			return false;
 		}
 	}
-	
+
 	@Deprecated
 	public boolean connectionTest() {
 		try {
@@ -365,12 +366,12 @@ public class TorCircuit {
 	private HttpClient.Builder createHttpClientBuilder() {
 		return HttpClient.newBuilder()
 				.proxy(new ProxySelector() {
-					
+
 					@Override
 					public List<Proxy> select(URI uri) {
 						return Arrays.asList(getHttpProxy());
 					}
-					
+
 					@Override
 					public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
 						throw new FriendlyException("Failed to connect", ioe);
@@ -379,32 +380,32 @@ public class TorCircuit {
 				.followRedirects(HttpClient.Redirect.NORMAL)
 				.version(Version.HTTP_2);
 	}
-	
+
 	public HttpClient getHttpClient() {
 		return httpClient;
 	}
-	
+
 	private HttpRequest.Builder initializeRequestBuilder(HttpRequest.Builder requestBuilder) {
 		defaultHeaders.forEach((k, v) -> requestBuilder.header(k, v));
 		return requestBuilder;
 	}
-	
+
 	public HttpRequest.Builder newRequestBuilder() {
 		return initializeRequestBuilder(HttpRequest.newBuilder());
 	}
-	
+
 	public HttpRequest.Builder newRequestBuilder(URI uri) {
 		return initializeRequestBuilder(HttpRequest.newBuilder(uri));
 	}
-	
+
 	public static TorCircuit attachDefault(String host, int port, Consumer<HttpClient.Builder> builderFunction) {
 		return new TorCircuit(null, host, port, true, builderFunction);
 	}
-	
+
 	public static TorCircuit attachDefault(String host, int port) {
 		return attachDefault(host, port, null);
 	}
-	
+
 	/**
 	 * Use {@link #attachDefault(String, int)} with a specific host instead
 	 * @param port
@@ -414,23 +415,27 @@ public class TorCircuit {
 	public static TorCircuit attachDefault(int port) {
 		return attachDefault("127.0.0.1", port);
 	}
-	
+
 	public static void setTorPath(String torPath) {
 		TorCircuit.torPath = torPath;
 	}
-	
+
 	private static boolean ensureOpen(String host, int port) {
-		try(ServerSocket ss = new ServerSocket(port, 1, InetAddress.getByName(host))){
-			ss.close();
+		try(ServerSocket ss = ServerSocketFactory.getDefault().createServerSocket()){
+			ss.setReuseAddress(true);
+			ss.bind(new InetSocketAddress(InetAddress.getByName(host), port), 1);
 			return true;
 		}catch(Exception e) {
 			return false;
 		}
 	}
-	
+
 	private static int getFreePort(String host) {
-		try(ServerSocket ss = new ServerSocket(0, 0, InetAddress.getByName(host))) {
+		try(ServerSocket ss = ServerSocketFactory.getDefault().createServerSocket()) {
+			ss.setReuseAddress(true);
+			ss.bind(new InetSocketAddress(InetAddress.getByName(host), 0), 1);
 			ss.close();
+			Thread.sleep(100); // To make sure the socket is fully closed
 			return ss.getLocalPort();
 		}catch(Exception e) {
 			throw new FriendlyException("Couldn't get free port", e);
